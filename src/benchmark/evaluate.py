@@ -13,6 +13,7 @@ import psycopg2
 import subprocess
 import time
 from dbms.generic_dbms import ConfigurableDBMS
+from benchmark.manual_workload_runner import ManualWorkloadRunner
 
 class Benchmark(ABC):
     """ Runs a benchmark to evaluate database configuration. """
@@ -113,10 +114,13 @@ class OLAP(Benchmark):
         """
         self.print_stats()
         self.eval_ctr += 1
-        start_ms = time.time() * 1000.0
-        error = self.dbms.exec_file(self.query_path)
-        end_ms = time.time() * 1000.0
-        millis = end_ms - start_ms
+        error = False
+        try:
+            _, millis = self._run_manual_workload()
+        except Exception as e:
+            print(f'ManualWorkloadRunner failed: {e}')
+            error = True
+            millis = float('inf')
         # Update statistics
         config = self.dbms.changed() if self.dbms else None
         if not error:
@@ -129,6 +133,14 @@ class OLAP(Benchmark):
         # Logging
         self._log(self.min_time, self.min_conf, millis, config)
         return {'error': error, 'time': millis}
+
+    def _run_manual_workload(self):
+        """Run the workload using ManualWorkloadRunner (used for tpch)."""
+        print("Running manual workload via ManualWorkloadRunner...")
+        runner = ManualWorkloadRunner()
+        runner.data_pre()
+        throughput, total_time_ms = runner.run()
+        return throughput, total_time_ms
     
     def print_stats(self):
         """ Print out benchmark statistics. """
