@@ -61,4 +61,4 @@ local.properties
 
 # pychache
 __pycache__/
-final_data/
+# final_data/
