@@ -6,10 +6,12 @@ Created on Aug 15, 2023
 from pybullet_utils.util import set_global_seeds
 
 import argparse
+import configparser
 import benchmark.factory
 import dbms.factory
 import numpy as np
 import random
+import search.objectives
 import time
 import torch
 
@@ -72,13 +74,16 @@ if __name__ == '__main__':
         default='echo "Reset database state!"; sleep 5',
         help='Command to restore default status of database system')
     parser.add_argument(
-        'query_path', type=str, default=None, 
+        'query_path', type=str, default=None, nargs='?',
         help='Path to file containing SQL queries')
     parser.add_argument(
         '--nr_runs', type=int, default=1, help='Number of benchmark runs')
     parser.add_argument(
         '--result_path_prefix', type=str, default='dbbert_results',
         help='Path prefix for files containing tuning results')
+    parser.add_argument(
+        '--oltp_config', type=str, default=None,
+        help='Path to OLTP config file (if set, runs OLTP instead of OLAP)')
     args = parser.parse_args()
     print(f'Input arguments: {args}')
 
@@ -103,6 +108,7 @@ if __name__ == '__main__':
         dbms.reset_config()
         dbms.reconfigure()
         bench.reset(args.result_path_prefix, run_ctr)
+        dbms._connect()
         
         # Initialize input documents
         docs = DocCollection(

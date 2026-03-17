@@ -270,3 +270,70 @@ class TpcC(Benchmark):
     def _reset_db(self):
         """ Reload TPC-C database from template database. """
         self.dbms.copy_db(self.template_db, self.target_db)
+
+
+class BenchBase(Benchmark):
+    """ Runs OLTP benchmarks using BenchBase. """
+    
+    def __init__(self, config, dbms):
+        super().__init__()
+        self.config = config
+        self.dbms = dbms
+        self.benchmark_name = config['BENCHMARK']['benchmark']
+        self.workload_config = config['BENCHMARK']['workload_config']
+        self.template_db = config['DATABASE']['template_db']
+        self.target_db = config['DATABASE']['target_db']
+        
+        # Build args dict for BenchBaseRunner
+        from benchmark.benchbase_runner import BenchBaseRunner
+        runner_args = {
+            'benchmark_config': dict(config['BENCHMARK']),
+            'database_config': dict(config['DATABASE'])
+        }
+        self.runner = BenchBaseRunner(runner_args)
+        self._init_stats()
+        
+    def evaluate(self):
+        self.eval_ctr += 1
+        self._reset_db()
+        time.sleep(10)
+        self.dbms._connect()
+        throughput = self.runner.run_benchmark(self.workload_config, None)
+        had_error = throughput <= 0
+        config = self.dbms.changed() if self.dbms else None
+        
+        if not had_error:
+            if throughput > self.max_throughput:
+                self.max_throughput = throughput
+                self.max_config = config
+            if throughput < self.min_throughput:
+                self.min_throughput = throughput
+                self.min_config = config
+        
+        self.print_stats()
+        self._log(self.max_throughput, self.max_config, throughput, config)
+        return {'error': had_error, 'throughput': throughput}
+    
+    def print_stats(self):
+        print(f'Min throughput {self.min_throughput} with config {self.min_config}')
+        print(f'Max throughput {self.max_throughput} with config {self.max_config}')
+        
+    def reset(self, log_path, run_ctr):
+        self._reset_db()
+        super().reset(log_path, run_ctr)
+        
+    def _init_stats(self):
+        self.min_throughput = float('inf')
+        self.min_config = {}
+        self.max_throughput = 0
+        self.max_config = {}
+        
+    def _reset_db(self):
+        script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+            'scripts', 'copy_db_from_template.sh')
+        result = subprocess.run([script_path])
+        if result.returncode != 0:
+            print(f"Failed to recreate database, exit code: {result.returncode}")
+        else:
+            print("Database recreated from template")
