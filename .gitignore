@@ -62,3 +62,5 @@ local.properties
 # pychache
 __pycache__/
 # final_data/
+stress_test_results
+benchbase/
